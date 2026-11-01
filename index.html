@@ -128,7 +128,9 @@
   .leaderboard ol { list-style: none; }
   .leaderboard li { display: flex; gap: 0.5rem; color: #c9d1e3; font-size: clamp(0.65rem, 2.2vw, 0.85rem); line-height: 1.7; }
   .leaderboard .r { color: var(--muted); width: 1.2em; }
-  .leaderboard .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leaderboard .info { flex: 1; min-width: 0; }
+  .leaderboard .n { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leaderboard .meta { display: block; font-size: 0.78em; color: var(--muted); line-height: 1.2; margin-bottom: 0.25rem; white-space: nowrap; }
   .leaderboard .s { color: var(--cyan); font-weight: 700; }
   .leaderboard li.me { color: #fff; }
   .leaderboard li.me .s { color: #39ff6a; text-shadow: 0 0 8px rgba(57, 255, 106, 0.6); }
@@ -175,7 +177,7 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 1.3</div>
+  <div class="version">Version 1.4</div>
   <div class="author">Author: Ha. Q. Vu - A5 K36 THCS Giang Vo - Ha Noi Viet Nam<span class="note">This is a research and experimental project, not a commercial product.</span></div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title" id="lbTitle">LEADERBOARD</div>
@@ -487,6 +489,9 @@ let globalBoard = null;
 // Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
 // Leave empty to use the on-device leaderboard only.
 const LEADERBOARD_URL = 'https://level-plus-b1948-default-rtdb.asia-southeast1.firebasedatabase.app';
+const GAME_VERSION = '1.4';
+const pad2 = x => String(x).padStart(2, '0');
+const fmtDate = t => { if (!t) return ''; const d = new Date(t); return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear(); };
 
 const validRow = e => e && typeof e.n === 'string' && typeof e.s === 'number' && e.s > 0;
 const sortRows = rows => rows.sort((a, b) => b.s - a.s || (a.t || 0) - (b.t || 0));
@@ -505,13 +510,13 @@ async function refreshGlobal() {
   } catch (e) {}
 }
 
-function submitGlobal(n, s) {
+function submitGlobal(n, s, v) {
   if (!LEADERBOARD_URL) return;
-  if (globalBoard) globalBoard = sortRows(globalBoard.concat([{ n, s, t: Date.now() }])).slice(0, 5);
+  if (globalBoard) globalBoard = sortRows(globalBoard.concat([{ n, s, v, t: Date.now() }])).slice(0, 5);
   fetch(LEADERBOARD_URL + '/scores.json', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ n, s, t: { '.sv': 'timestamp' } })
+    body: JSON.stringify({ n, s, v, t: { '.sv': 'timestamp' } })
   }).then(() => refreshGlobal()).catch(() => {});
 }
 try { playerName = localStorage.getItem('levelPlusName') || 'Player'; } catch (e) {}
@@ -519,9 +524,9 @@ try { board = JSON.parse(localStorage.getItem('levelPlusBoard') || '[]'); if (!A
 
 function addToBoard() {
   if (score <= 0) return -1;
-  const entry = { n: playerName || 'Player', s: score, t: Date.now() };
+  const entry = { n: playerName || 'Player', s: score, t: Date.now(), v: GAME_VERSION };
   lastEntry = { n: entry.n, s: entry.s };
-  submitGlobal(entry.n, entry.s);
+  submitGlobal(entry.n, entry.s, entry.v);
   board.push(entry);
   board.sort((a, b) => b.s - a.s || a.t - b.t);
   board = board.slice(0, 5);
@@ -546,9 +551,13 @@ function renderBoard() {
     const li = document.createElement('li');
     if (!marked && lastEntry && e.n === lastEntry.n && e.s === lastEntry.s) { li.className = 'me'; marked = true; }
     const r = document.createElement('span'); r.className = 'r'; r.textContent = (i + 1) + '.';
+    const info = document.createElement('span'); info.className = 'info';
     const n = document.createElement('span'); n.className = 'n'; n.textContent = String(e.n).slice(0, 12);
+    const m = document.createElement('span'); m.className = 'meta';
+    m.textContent = [fmtDate(e.t), e.v ? 'v' + String(e.v).slice(0, 8) : ''].filter(Boolean).join(' · ');
+    info.append(n, m);
     const s = document.createElement('span'); s.className = 's'; s.textContent = e.s;
-    li.append(r, n, s);
+    li.append(r, info, s);
     list.appendChild(li);
   });
 }
@@ -942,6 +951,7 @@ $('soundBtn').addEventListener('click', toggleSound);
 // Browsers only allow audio after the first tap/click/key
 ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { passive: true }));
 updateSoundBtn();
+document.querySelector('.version').textContent = 'Version ' + GAME_VERSION;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { pauseGame(); Sound.suspend(); }
   else if (gameState !== STATE.PAUSED) Sound.resume();
