@@ -159,7 +159,7 @@
       <span class="hud-value" id="hudScore">0</span>
     </div>
     <div class="hud-item right">
-      <span class="hud-label">Level <span id="hudLevel">1</span> / 10</span>
+      <span class="hud-label">Level <span id="hudLevel">1</span><span id="hudMax"> / 10</span></span>
       <div class="level-bar"><div class="level-bar-fill" id="levelBarFill"></div></div>
     </div>
   </div>
@@ -183,7 +183,7 @@
       <div class="instructions">
         The orb flies forward on its own.<br>
         <span class="hi">Tap anywhere to fly up</span> through the gates.<br>
-        Each gate is +1 point. Clear <span class="hi-p">level 10</span> to win.
+        Each gate is +1 point. Reach <span class="hi-p">level 10</span> for endless mode!
       </div>
       <input class="name-input" id="nameInput" type="text" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Your name">
       <button class="btn" id="startBtn">Start</button>
@@ -595,14 +595,15 @@ function levelUp() {
   Sound.setLevel(level);
   Sound.sfx('level');
   const flash = $('levelUpFlash');
-  flash.textContent = 'LEVEL ' + level;
+  flash.textContent = level === 10 ? 'ENDLESS' : 'LEVEL ' + level;
   flash.classList.remove('show'); void flash.offsetWidth; flash.classList.add('show');
 }
 
 function updateHUD() {
   $('hudScore').textContent = score;
   $('hudLevel').textContent = level;
-  $('levelBarFill').style.width = (gatesPassedThisLevel / GATES_PER_LEVEL) * 100 + '%';
+  $('hudMax').textContent = level >= 10 ? ' · ENDLESS' : ' / 10';
+  $('levelBarFill').style.width = (level >= 10 ? 100 : (gatesPassedThisLevel / GATES_PER_LEVEL) * 100) + '%';
 }
 
 function showScorePop() {
@@ -652,10 +653,7 @@ function update() {
       spawnScoreParticles(g.x + g.width / 2, orb.y);
       showScorePop();
       Sound.sfx('gate');
-      if (gatesPassedThisLevel >= GATES_PER_LEVEL) {
-        if (level < 10) levelUp();
-        else { updateHUD(); win(); return; }
-      }
+      if (gatesPassedThisLevel >= GATES_PER_LEVEL && level < 10) levelUp();
     }
   }
   gates = gates.filter(g => g.x + g.width > -80);
