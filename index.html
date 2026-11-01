@@ -141,6 +141,11 @@
   }
   .name-input::placeholder { color: #4a5568; }
   .name-input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 15px rgba(0, 240, 255, 0.3); }
+  .version {
+    position: absolute; right: calc(1.5rem + env(safe-area-inset-right, 0px)); top: 3.6rem; z-index: 11;
+    color: #6b7280; font-size: clamp(0.6rem, 2vw, 0.75rem); letter-spacing: 0.15em;
+    pointer-events: none; text-shadow: 0 0 8px rgba(176, 38, 255, 0.35);
+  }
   .author {
     position: absolute; right: calc(1.2rem + env(safe-area-inset-right, 0px)); bottom: 1rem;
     color: #8b93a7; font-size: clamp(0.65rem, 2.2vw, 0.85rem); letter-spacing: 0.08em;
@@ -169,6 +174,7 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
+  <div class="version">Version 1.0</div>
   <div class="author">Author: Ha. Q. Vu - A5 K36 THCS Giảng Võ - Viet Nam</div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title">LEADERBOARD</div>
@@ -842,7 +848,16 @@ function render() {
   ctx.restore();
 }
 
-function loop() { update(); render(); requestAnimationFrame(loop); }
+// Fixed 60 updates per second, so speed is the same on 60Hz, 120Hz and 144Hz screens
+const STEP = 1000 / 60;
+let lastTime = 0, acc = 0;
+function loop(now) {
+  acc += Math.min(now - lastTime, 250);
+  lastTime = now;
+  while (acc >= STEP) { update(); acc -= STEP; }
+  render();
+  requestAnimationFrame(loop);
+}
 
 // ===== Input =====
 window.addEventListener('resize', resize);
@@ -900,7 +915,7 @@ $('nameInput').addEventListener('input', e => {
 });
 showBoard(true);
 orb.x = W * 0.28; orb.y = H * 0.45;
-loop();
+requestAnimationFrame(t => { lastTime = t; loop(t); });
 </script>
 </body>
 </html>
