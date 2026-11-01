@@ -174,10 +174,10 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 1.0</div>
+  <div class="version">Version 1.1</div>
   <div class="author">Author: Ha. Q. Vu - A5 K36 THCS Giảng Võ - Viet Nam</div>
   <div id="leaderboard" class="leaderboard">
-    <div class="lb-title">LEADERBOARD</div>
+    <div class="lb-title" id="lbTitle">LEADERBOARD</div>
     <ol id="lbList"></ol>
   </div>
   <div id="scorePop">+1</div>
@@ -266,7 +266,7 @@ let score = 0, bestScore = 0, level = 1, gatesPassedThisLevel = 0;
 const GATES_PER_LEVEL = 5;
 let scrollSpeed = LEVELS[0].speed, gravity = LEVELS[0].gravity;
 const JUMP_FORCE = -9;
-let gateSpawnTimer = 0, gateSpawnInterval = LEVELS[0].spawnInterval;
+let gateSpawnTimer = 0, gateSpawnInterval = LEVELS[0].spawnInterval, gatesSpawned = 0;
 let screenShake = 0, bgGridOffset = 0, bgPulse = 0;
 
 try { bestScore = parseInt(localStorage.getItem('levelPlusBest') || '0', 10) || 0; } catch (e) { bestScore = 0; }
@@ -297,10 +297,12 @@ function initBackgroundParticles() {
 }
 
 function spawnGate() {
-  const cfg = LEVELS[level - 1];
+  // Gates shrink smoothly with every gate: 270px at the start, never below 100px
+  const gapSize = Math.max(100, 270 - gatesSpawned * 3.6);
+  gatesSpawned++;
   const margin = 70;
-  const minGapY = cfg.gapSize / 2 + margin;
-  const maxGapY = H - cfg.gapSize / 2 - margin;
+  const minGapY = gapSize / 2 + margin;
+  const maxGapY = H - gapSize / 2 - margin;
   let gapY;
   if (gates.length > 0) {
     gapY = gates[gates.length - 1].gapY + (Math.random() - 0.5) * 360;
@@ -308,7 +310,7 @@ function spawnGate() {
   } else {
     gapY = minGapY + Math.random() * (maxGapY - minGapY);
   }
-  gates.push({ x: W + 70, width: 62, gapY, gapSize: cfg.gapSize, passed: false, glowPhase: Math.random() * Math.PI * 2 });
+  gates.push({ x: W + 70, width: 62, gapY, gapSize, passed: false, glowPhase: Math.random() * Math.PI * 2 });
 }
 
 function jump() {
@@ -477,12 +479,48 @@ function toggleSound() {
 let playerName = 'Player';
 let board = [];
 let lastRank = -1;
+let lastEntry = null;
+let globalBoard = null;
+
+// ===== World leaderboard (Firebase Realtime Database) =====
+// Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
+// Leave empty to use the on-device leaderboard only.
+const LEADERBOARD_URL = '';
+
+const validRow = e => e && typeof e.n === 'string' && typeof e.s === 'number' && e.s > 0;
+const sortRows = rows => rows.sort((a, b) => b.s - a.s || (a.t || 0) - (b.t || 0));
+
+async function refreshGlobal() {
+  if (!LEADERBOARD_URL) return;
+  try {
+    const ctrl = new AbortController();
+    const tm = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(LEADERBOARD_URL + '/scores.json?orderBy=%22s%22&limitToLast=25', { signal: ctrl.signal });
+    clearTimeout(tm);
+    if (!r.ok) return;
+    const data = await r.json();
+    globalBoard = sortRows(Object.values(data || {}).filter(validRow)).slice(0, 5);
+    if (!$('leaderboard').classList.contains('hidden')) renderBoard();
+  } catch (e) {}
+}
+
+function submitGlobal(n, s) {
+  if (!LEADERBOARD_URL) return;
+  if (globalBoard) globalBoard = sortRows(globalBoard.concat([{ n, s, t: Date.now() }])).slice(0, 5);
+  fetch(LEADERBOARD_URL + '/scores.json', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ n, s, t: { '.sv': 'timestamp' } })
+  }).then(() => refreshGlobal()).catch(() => {});
+}
 try { playerName = localStorage.getItem('levelPlusName') || 'Player'; } catch (e) {}
 try { board = JSON.parse(localStorage.getItem('levelPlusBoard') || '[]'); if (!Array.isArray(board)) board = []; } catch (e) { board = []; }
 
 function addToBoard() {
   if (score <= 0) return -1;
   const entry = { n: playerName || 'Player', s: score, t: Date.now() };
+  lastEntry = { n: entry.n, s: entry.s };
+  submitGlobal(entry.n, entry.s);
   board.push(entry);
   board.sort((a, b) => b.s - a.s || a.t - b.t);
   board = board.slice(0, 5);
@@ -493,16 +531,19 @@ function addToBoard() {
 function renderBoard() {
   const list = $('lbList');
   list.textContent = '';
-  if (!board.length) {
+  const rows = globalBoard || board;
+  $('lbTitle').textContent = globalBoard ? 'WORLD LEADERBOARD' : 'LEADERBOARD';
+  if (!rows.length) {
     const li = document.createElement('li');
     li.className = 'lb-empty';
     li.textContent = 'No scores yet';
     list.appendChild(li);
     return;
   }
-  board.forEach((e, i) => {
+  let marked = false;
+  rows.forEach((e, i) => {
     const li = document.createElement('li');
-    if (i === lastRank) li.className = 'me';
+    if (!marked && lastEntry && e.n === lastEntry.n && e.s === lastEntry.s) { li.className = 'me'; marked = true; }
     const r = document.createElement('span'); r.className = 'r'; r.textContent = (i + 1) + '.';
     const n = document.createElement('span'); n.className = 'n'; n.textContent = String(e.n).slice(0, 12);
     const s = document.createElement('span'); s.className = 's'; s.textContent = e.s;
@@ -512,7 +553,7 @@ function renderBoard() {
 }
 
 function showBoard(visible) {
-  if (visible) renderBoard();
+  if (visible) { renderBoard(); refreshGlobal(); }
   $('leaderboard').classList.toggle('hidden', !visible);
 }
 
@@ -551,7 +592,7 @@ function win() {
 function resetGame() {
   orb.x = W * 0.28; orb.y = H * 0.45; orb.vy = 0; orb.trail = []; orb.rotation = 0;
   gates = []; particles = []; shock = null; debris = [];
-  score = 0; level = 1; gatesPassedThisLevel = 0; gateSpawnTimer = 0; screenShake = 0;
+  score = 0; level = 1; gatesPassedThisLevel = 0; gateSpawnTimer = 0; gatesSpawned = 0; screenShake = 0;
   const cfg = LEVELS[0];
   scrollSpeed = cfg.speed; gravity = cfg.gravity; gateSpawnInterval = cfg.spawnInterval;
   Sound.setLevel(1);
