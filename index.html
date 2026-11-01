@@ -84,7 +84,12 @@
   .hud-value { font-size: clamp(1.4rem, 5.5vw, 2rem); font-weight: 900; color: var(--cyan); text-shadow: 0 0 18px rgba(0, 240, 255, 0.45); line-height: 1.1; }
   .level-bar { width: clamp(80px, 25vw, 120px); height: 4px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; margin-top: 0.35rem; overflow: hidden; }
   .level-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00f0ff, #b026ff); border-radius: 2px; transition: width 0.4s ease; }
-  #pauseBtn {
+  .top-controls {
+    position: absolute; top: 1rem; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 0.6rem; z-index: 12;
+  }
+  #soundBtn.off { opacity: 0.4; text-decoration: line-through; border-color: rgba(107, 114, 128, 0.6); }
+  #pauseBtn, #soundBtn {
     pointer-events: auto; width: 44px; height: 44px; border-radius: 50%;
     border: 2px solid rgba(0, 240, 255, 0.5); background: rgba(5, 8, 22, 0.5);
     color: var(--cyan); font: 900 1rem/1 inherit; cursor: pointer;
@@ -153,7 +158,6 @@
       <span class="hud-label">Score</span>
       <span class="hud-value" id="hudScore">0</span>
     </div>
-    <button id="pauseBtn" aria-label="Pause">II</button>
     <div class="hud-item right">
       <span class="hud-label">Level <span id="hudLevel">1</span> / 10</span>
       <div class="level-bar"><div class="level-bar-fill" id="levelBarFill"></div></div>
@@ -161,7 +165,11 @@
   </div>
 
   <div id="levelUpFlash"></div>
-  <div class="author">Author: Vu Quang Ha - A5 k36 THCS Giảng Võ - Viet Nam</div>
+  <div class="top-controls">
+    <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
+    <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
+  </div>
+  <div class="author">Author: Ha. Q. Vu - A5 K36 THCS Giảng Võ - Viet Nam</div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title">LEADERBOARD</div>
     <ol id="lbList"></ol>
@@ -225,6 +233,23 @@ let gameState = STATE.START;
 
 const orb = { x: 0, y: 0, vy: 0, radius: 18, trail: [], rotation: 0 };
 let gates = [], particles = [], bgParticles = [];
+let shock = null;
+let debris = [];
+
+function collapse(g, part) {
+  g.broken = part;
+  const gapTop = g.gapY - g.gapSize / 2, gapBottom = g.gapY + g.gapSize / 2;
+  const y0 = part === 'top' ? 0 : gapBottom, y1 = part === 'top' ? gapTop : H;
+  const push = orb.x < g.x + g.width / 2 ? 1.5 : -1.5;
+  for (let y = y0; y < y1; y += 36) {
+    debris.push({
+      x: g.x, y, w: g.width, h: Math.min(36, y1 - y),
+      vx: (Math.random() - 0.5) * 4 + push,
+      vy: part === 'top' ? Math.random() * 2 : -Math.random() * 4 - 2,
+      rot: 0, vr: (Math.random() - 0.5) * 0.15
+    });
+  }
+}
 
 const LEVELS = [];
 for (let i = 0; i < 10; i++) {
@@ -283,6 +308,7 @@ function spawnGate() {
 function jump() {
   if (gameState !== STATE.PLAYING) return;
   orb.vy = JUMP_FORCE;
+  Sound.sfx('jump');
   for (let i = 0; i < 6; i++) {
     particles.push({ x: orb.x + (Math.random() - 0.5) * 12, y: orb.y + orb.radius, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2.5 + 1, size: Math.random() * 3.5 + 2, life: 1, decay: 0.035, color: '#00f0ff' });
   }
@@ -299,6 +325,9 @@ function startGame() {
   $('hud').classList.remove('hidden');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   showBoard(false);
+  $('pauseBtn').classList.remove('hidden');
+  Sound.unlock();
+  Sound.resume();
 }
 
 function pauseGame() {
@@ -306,6 +335,8 @@ function pauseGame() {
   gameState = STATE.PAUSED;
   $('pauseScreen').classList.remove('hidden');
   showBoard(true);
+  $('pauseBtn').classList.add('hidden');
+  Sound.suspend();
 }
 
 function resumeGame() {
@@ -313,6 +344,8 @@ function resumeGame() {
   gameState = STATE.PLAYING;
   $('pauseScreen').classList.add('hidden');
   showBoard(false);
+  $('pauseBtn').classList.remove('hidden');
+  Sound.resume();
 }
 
 function saveBest() {
@@ -322,6 +355,116 @@ function saveBest() {
     return true;
   }
   return false;
+}
+
+// ===== Sound: original synthwave loop + effects (Web Audio, no files) =====
+const Sound = (() => {
+  let actx = null, master = null, musicBus = null, sfxBus = null, noiseBuf = null;
+  let enabled = true, timer = null, step = 0, nextTime = 0, bpm = 110, held = false;
+  try { enabled = localStorage.getItem('levelPlusSound') !== 'off'; } catch (e) {}
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
+  const ARP = [0, 1, 2, 1, 0, 1, 2, 3, 0, 1, 2, 1, 2, 1, 0, 1];
+
+  function init() {
+    if (actx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    actx = new AC();
+    master = actx.createGain(); master.gain.value = enabled ? 1 : 0; master.connect(actx.destination);
+    musicBus = actx.createGain(); musicBus.gain.value = 0.22; musicBus.connect(master);
+    sfxBus = actx.createGain(); sfxBus.gain.value = 0.4; sfxBus.connect(master);
+    noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  function env(g, t, vol, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function tone(freq, t, dur, type, vol, dest, cutoff) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    env(g, t, vol, dur);
+    let node = o;
+    if (cutoff) { const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff; o.connect(f); node = f; }
+    node.connect(g); g.connect(dest);
+    o.start(t); o.stop(t + dur + 0.05);
+    return o;
+  }
+  function noise(t, dur, vol, type, freq, dest) {
+    const s = actx.createBufferSource(); s.buffer = noiseBuf;
+    const f = actx.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+    const g = actx.createGain(); env(g, t, vol, dur);
+    s.connect(f); f.connect(g); g.connect(dest);
+    s.start(t); s.stop(t + dur + 0.05);
+  }
+  function kick(t) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    env(g, t, 0.9, 0.25);
+    o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + 0.3);
+  }
+  function scheduleStep(s, t) {
+    const i = s % 16, ch = CHORDS[Math.floor(s / 16) % 4];
+    if (i % 4 === 0) kick(t);
+    if (i % 4 === 2) noise(t, 0.04, 0.12, 'highpass', 7000, musicBus);
+    if (i === 4 || i === 12) noise(t, 0.14, 0.3, 'bandpass', 1800, musicBus);
+    if (i % 2 === 0) tone(midi(ch[0] - 24), t, 0.2, 'sawtooth', 0.35, musicBus, 500);
+    const a = ARP[i];
+    const note = a === 3 ? ch[0] + 12 : ch[a];
+    tone(midi(note + 12), t, 0.13, 'square', 0.07, musicBus, 2400);
+  }
+  function tick() {
+    if (!actx) return;
+    const sd = 60 / bpm / 4;
+    while (nextTime < actx.currentTime + 0.15) { scheduleStep(step, nextTime); nextTime += sd; step++; }
+  }
+  function startMusic() {
+    if (!actx || timer) return;
+    step = 0; nextTime = actx.currentTime + 0.06;
+    timer = setInterval(tick, 25);
+  }
+  return {
+    unlock() { init(); if (!actx) return; if (!held && actx.state !== 'running') actx.resume().catch(() => {}); startMusic(); },
+    suspend() { held = true; if (actx && actx.state === 'running') actx.suspend().catch(() => {}); },
+    resume() { held = false; if (actx && actx.state !== 'running') actx.resume().catch(() => {}); },
+    isEnabled() { return enabled; },
+    setEnabled(v) {
+      enabled = v;
+      try { localStorage.setItem('levelPlusSound', v ? 'on' : 'off'); } catch (e) {}
+      if (master) master.gain.setTargetAtTime(v ? 1 : 0, actx.currentTime, 0.03);
+    },
+    setLevel(l) { bpm = 110 + (l - 1) * 3; },
+    sfx(name) {
+      if (!actx || actx.state !== 'running') return;
+      const t = actx.currentTime + 0.01;
+      if (name === 'jump') {
+        const o = tone(520, t, 0.1, 'triangle', 0.25, sfxBus); o.frequency.exponentialRampToValueAtTime(820, t + 0.08);
+      } else if (name === 'gate') {
+        tone(1046.5, t, 0.12, 'sine', 0.3, sfxBus); tone(1568, t + 0.07, 0.18, 'sine', 0.25, sfxBus);
+      } else if (name === 'level') {
+        [72, 76, 79, 84].forEach((n, k) => tone(midi(n), t + k * 0.08, 0.18, 'square', 0.12, sfxBus, 3000));
+      } else if (name === 'crash') {
+        noise(t, 0.6, 0.7, 'lowpass', 900, sfxBus);
+        const o = tone(220, t, 0.5, 'sawtooth', 0.3, sfxBus, 800); o.frequency.exponentialRampToValueAtTime(40, t + 0.5);
+      } else if (name === 'win') {
+        [72, 76, 79, 84, 88, 91, 96].forEach((n, k) => tone(midi(n), t + k * 0.1, 0.3, 'square', 0.12, sfxBus, 3500));
+      }
+    }
+  };
+})();
+
+function updateSoundBtn() {
+  const on = Sound.isEnabled();
+  $('soundBtn').classList.toggle('off', !on);
+  $('soundBtn').setAttribute('aria-pressed', String(on));
+}
+function toggleSound() {
+  Sound.unlock();
+  Sound.setEnabled(!Sound.isEnabled());
+  updateSoundBtn();
 }
 
 // ===== Leaderboard (top 5, saved on this device) =====
@@ -370,6 +513,8 @@ function showBoard(visible) {
 function gameOver() {
   gameState = STATE.GAME_OVER;
   explode();
+  Sound.sfx('crash');
+  $('pauseBtn').classList.add('hidden');
   const isNewBest = saveBest();
   $('finalScore').textContent = score;
   $('finalBest').textContent = 'Best: ' + bestScore;
@@ -383,6 +528,8 @@ function gameOver() {
 function win() {
   gameState = STATE.WIN;
   saveBest();
+  Sound.sfx('win');
+  $('pauseBtn').classList.add('hidden');
   for (let i = 0; i < 60; i++) {
     const a = Math.random() * Math.PI * 2, s = Math.random() * 8 + 2;
     particles.push({ x: orb.x, y: orb.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, size: Math.random() * 6 + 3, life: 1, decay: 0.012, color: Math.random() > 0.5 ? '#00f0ff' : '#b026ff' });
@@ -397,10 +544,11 @@ function win() {
 
 function resetGame() {
   orb.x = W * 0.28; orb.y = H * 0.45; orb.vy = 0; orb.trail = []; orb.rotation = 0;
-  gates = []; particles = [];
+  gates = []; particles = []; shock = null; debris = [];
   score = 0; level = 1; gatesPassedThisLevel = 0; gateSpawnTimer = 0; screenShake = 0;
   const cfg = LEVELS[0];
   scrollSpeed = cfg.speed; gravity = cfg.gravity; gateSpawnInterval = cfg.spawnInterval;
+  Sound.setLevel(1);
   updateHUD();
 }
 
@@ -416,16 +564,18 @@ function checkCollisions() {
   if (orb.y - r < 0 || orb.y + r > H) { gameOver(); return; }
   for (const g of gates) {
     const gapTop = g.gapY - g.gapSize / 2, gapBottom = g.gapY + g.gapSize / 2;
-    if (circleRectCollide(orb.x, orb.y, r, g.x, 0, g.width, gapTop) ||
-        circleRectCollide(orb.x, orb.y, r, g.x, gapBottom, g.width, H - gapBottom)) { gameOver(); return; }
+    const hitTop = circleRectCollide(orb.x, orb.y, r, g.x, 0, g.width, gapTop);
+    const hitBottom = !hitTop && circleRectCollide(orb.x, orb.y, r, g.x, gapBottom, g.width, H - gapBottom);
+    if (hitTop || hitBottom) { collapse(g, hitTop ? 'top' : 'bottom'); gameOver(); return; }
   }
 }
 
 function explode() {
-  screenShake = 18;
-  for (let i = 0; i < 40; i++) {
-    const angle = (Math.PI * 2 * i) / 40 + Math.random() * 0.3, spd = Math.random() * 7 + 2;
-    particles.push({ x: orb.x, y: orb.y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, size: Math.random() * 6 + 3, life: 1, decay: 0.018, color: Math.random() > 0.5 ? '#00f0ff' : '#b026ff' });
+  screenShake = 28;
+  shock = { x: orb.x, y: orb.y, r: orb.radius, life: 1 };
+  for (let i = 0; i < 90; i++) {
+    const angle = (Math.PI * 2 * i) / 90 + Math.random() * 0.3, spd = Math.random() * 10 + 3;
+    particles.push({ x: orb.x, y: orb.y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, size: Math.random() * 7 + 4, life: 1, decay: 0.012, color: Math.random() > 0.5 ? '#00f0ff' : '#b026ff' });
   }
 }
 
@@ -442,6 +592,8 @@ function levelUp() {
   gatesPassedThisLevel = 0;
   const cfg = LEVELS[level - 1];
   scrollSpeed = cfg.speed; gravity = cfg.gravity; gateSpawnInterval = cfg.spawnInterval;
+  Sound.setLevel(level);
+  Sound.sfx('level');
   const flash = $('levelUpFlash');
   flash.textContent = 'LEVEL ' + level;
   flash.classList.remove('show'); void flash.offsetWidth; flash.classList.add('show');
@@ -499,6 +651,7 @@ function update() {
       gatesPassedThisLevel++;
       spawnScoreParticles(g.x + g.width / 2, orb.y);
       showScorePop();
+      Sound.sfx('gate');
       if (gatesPassedThisLevel >= GATES_PER_LEVEL) {
         if (level < 10) levelUp();
         else { updateHUD(); win(); return; }
@@ -522,6 +675,9 @@ function update() {
 }
 
 function updateParticles() {
+  for (const d of debris) { d.x += d.vx; d.y += d.vy; d.vy += 0.5; d.rot += d.vr; }
+  debris = debris.filter(d => d.y < H + 120);
+  if (shock) { shock.r += 14; shock.life -= 0.035; if (shock.life <= 0) shock = null; }
   for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= p.decay; p.size *= 0.975; }
   particles = particles.filter(p => p.life > 0 && p.size > 0.5);
 }
@@ -601,6 +757,7 @@ function drawGate(g) {
 }
 
 function drawOrb() {
+  if (gameState === STATE.GAME_OVER) return;
   for (const t of orb.trail) {
     if (t.life <= 0) continue;
     ctx.globalAlpha = t.life * 0.4;
@@ -634,6 +791,14 @@ function drawOrb() {
 }
 
 function drawParticles() {
+  if (shock) {
+    ctx.globalAlpha = shock.life;
+    ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 25;
+    ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 6 * shock.life + 1;
+    ctx.beginPath(); ctx.arc(shock.x, shock.y, shock.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowColor = '#b026ff'; ctx.strokeStyle = '#b026ff'; ctx.lineWidth = 3 * shock.life + 1;
+    ctx.beginPath(); ctx.arc(shock.x, shock.y, shock.r * 0.7, 0, Math.PI * 2); ctx.stroke();
+  }
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, p.life);
     ctx.shadowColor = p.color; ctx.shadowBlur = 12; ctx.fillStyle = p.color;
@@ -642,11 +807,39 @@ function drawParticles() {
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
 
+function drawGates() {
+  for (const g of gates) {
+    if (!g.broken) { drawGate(g); continue; }
+    ctx.save();
+    ctx.beginPath();
+    if (g.broken === 'top') ctx.rect(g.x - 60, g.gapY, g.width + 120, H);
+    else ctx.rect(g.x - 60, 0, g.width + 120, g.gapY);
+    ctx.clip();
+    drawGate(g);
+    ctx.restore();
+  }
+}
+
+function drawDebris() {
+  for (const d of debris) {
+    ctx.save();
+    ctx.translate(d.x + d.w / 2, d.y + d.h / 2);
+    ctx.rotate(d.rot);
+    ctx.shadowColor = '#b026ff'; ctx.shadowBlur = 15;
+    ctx.fillStyle = 'rgba(176, 38, 255, 0.45)';
+    ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+    ctx.shadowColor = '#ff2a4d';
+    ctx.strokeStyle = 'rgba(255, 42, 77, 0.9)'; ctx.lineWidth = 2;
+    ctx.strokeRect(-d.w / 2, -d.h / 2, d.w, d.h);
+    ctx.restore();
+  }
+}
+
 function render() {
   ctx.save();
   if (screenShake > 0.5) ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
   drawBackground();
-  if (gameState !== STATE.START) { for (const g of gates) drawGate(g); drawParticles(); }
+  if (gameState !== STATE.START) { drawGates(); drawDebris(); drawParticles(); }
   drawOrb();
   ctx.restore();
 }
@@ -677,6 +870,8 @@ window.addEventListener('keydown', e => {
     if (gameState === STATE.PLAYING) jump();
     else if (gameState === STATE.START || gameState === STATE.GAME_OVER || gameState === STATE.WIN) startGame();
     else if (gameState === STATE.PAUSED) resumeGame();
+  } else if (e.code === 'KeyM') {
+    toggleSound();
   } else if (e.code === 'KeyP' || e.code === 'Escape') {
     if (gameState === STATE.PLAYING) pauseGame();
     else if (gameState === STATE.PAUSED) resumeGame();
@@ -688,7 +883,14 @@ $('restartBtn').addEventListener('click', startGame);
 $('winRestartBtn').addEventListener('click', startGame);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+$('soundBtn').addEventListener('click', toggleSound);
+// Browsers only allow audio after the first tap/click/key
+['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { passive: true }));
+updateSoundBtn();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { pauseGame(); Sound.suspend(); }
+  else if (gameState !== STATE.PAUSED) Sound.resume();
+});
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 resize();
