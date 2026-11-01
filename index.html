@@ -253,7 +253,7 @@ function collapse(g, part) {
 
 const LEVELS = [];
 for (let i = 0; i < 10; i++) {
-  LEVELS.push({ speed: 3.0 + i * 0.55, gapSize: 230 - i * 16, spawnInterval: Math.max(50, 105 - i * 6), gravity: 0.42 + i * 0.025 });
+  LEVELS.push({ speed: 3.0 + i * 0.55, gapSize: 230 - i * 16 + (i < 3 ? 40 : 0), spawnInterval: Math.max(50, 105 - i * 6), gravity: 0.42 + i * 0.025 });
 }
 
 let score = 0, bestScore = 0, level = 1, gatesPassedThisLevel = 0;
