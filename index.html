@@ -120,7 +120,7 @@
   @media (prefers-reduced-motion: reduce) { .game-title, .new-best { animation: none; } }
   .leaderboard {
     position: absolute; left: calc(1.2rem + env(safe-area-inset-left, 0px)); bottom: 1rem; z-index: 11;
-    pointer-events: none; min-width: 150px; max-width: 42vw; padding: 0.6rem 0.8rem;
+    pointer-events: auto; cursor: pointer; min-width: 150px; max-width: 42vw; padding: 0.6rem 0.8rem;
     border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 6px; background: rgba(5, 8, 22, 0.72);
     box-shadow: 0 0 18px rgba(0, 240, 255, 0.12);
   }
@@ -137,6 +137,30 @@
   .leaderboard li.me { color: #fff; }
   .leaderboard li.me .s { color: #39ff6a; text-shadow: 0 0 8px rgba(57, 255, 106, 0.6); }
   .leaderboard li.lb-empty { color: var(--muted); }
+  .lb-hint { margin-top: 0.3rem; color: var(--cyan); opacity: 0.7; font-size: clamp(0.55rem, 1.8vw, 0.7rem); letter-spacing: 0.12em; }
+  .lb-modal { z-index: 20; pointer-events: auto; }
+  .lb-panel {
+    width: min(440px, 92vw); max-height: 85%; overflow-y: auto; padding: 1.2rem 1.4rem; text-align: left;
+    border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 10px; background: rgba(5, 8, 22, 0.95);
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+  }
+  .lb-panel .lb-title { font-size: clamp(0.8rem, 3vw, 1rem); margin-bottom: 0.6rem; text-align: center; }
+  .lb-panel ol { list-style: none; }
+  .lb-panel li { display: flex; gap: 0.6rem; color: #c9d1e3; font-size: clamp(0.8rem, 3vw, 1rem); line-height: 1.6; padding: 0.3rem 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+  .lb-panel .r { color: var(--muted); width: 1.8em; }
+  .lb-panel li:nth-child(1) .r { color: #ffd54a; }
+  .lb-panel li:nth-child(2) .r { color: #cfd8e3; }
+  .lb-panel li:nth-child(3) .r { color: #e0915a; }
+  .lb-panel .info { flex: 1; min-width: 0; }
+  .lb-panel .n { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-panel .meta { display: block; font-size: 0.75em; color: var(--muted); line-height: 1.3; }
+  .lb-panel .dev { display: inline-block; margin-left: 0.3em; }
+  .lb-panel .dev svg { width: 1.15em; height: 1.15em; vertical-align: -0.25em; fill: none; stroke: var(--cyan); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .lb-panel .s { color: var(--cyan); font-weight: 700; }
+  .lb-panel li.me { color: #fff; }
+  .lb-panel li.me .s { color: #39ff6a; text-shadow: 0 0 8px rgba(57, 255, 106, 0.6); }
+  .lb-panel li.lb-empty { color: var(--muted); }
+  .lb-panel .btn { display: block; margin: 1.2rem auto 0; padding: 0.7rem 2rem; font-size: 1rem; }
   .name-input {
     display: block; margin: 1.5rem auto 0; width: min(240px, 70vw); padding: 0.6rem 1rem;
     background: transparent; border: 1px solid rgba(176, 38, 255, 0.5); border-radius: 4px;
@@ -179,11 +203,19 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 1.5</div>
+  <div class="version">Version 1.7</div>
   <div class="author">Author: Ha Q. Vu - A5 K36 THCS Giang Vo - Ha Noi - Viet Nam<span class="note">This is a research and experimental project, not a commercial product.</span></div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title" id="lbTitle">LEADERBOARD</div>
     <ol id="lbList"></ol>
+    <div class="lb-hint">TAP FOR TOP 10 ▸</div>
+  </div>
+  <div id="lbModal" class="screen dim lb-modal hidden">
+    <div class="screen-content lb-panel">
+      <div class="lb-title" id="lbModalTitle">TOP 10</div>
+      <ol id="lbModalList"></ol>
+      <button class="btn" id="lbCloseBtn">Close</button>
+    </div>
   </div>
   <div id="scorePop">+1</div>
 
@@ -252,13 +284,32 @@ function collapse(g, part) {
   const gapTop = g.gapY - g.gapSize / 2, gapBottom = g.gapY + g.gapSize / 2;
   const y0 = part === 'top' ? 0 : gapBottom, y1 = part === 'top' ? gapTop : H;
   const push = orb.x < g.x + g.width / 2 ? 1.5 : -1.5;
-  for (let y = y0; y < y1; y += 36) {
-    debris.push({
-      x: g.x, y, w: g.width, h: Math.min(36, y1 - y),
-      vx: (Math.random() - 0.5) * 4 + push,
-      vy: part === 'top' ? Math.random() * 2 : -Math.random() * 4 - 2,
-      rot: 0, vr: (Math.random() - 0.5) * 0.15
-    });
+  // Shatter the hit pillar into many small shards of random shapes (triangles to hexagons)
+  let y = y0;
+  while (y < y1) {
+    const ch = Math.min(14 + Math.random() * 14, y1 - y);
+    let x = g.x;
+    while (x < g.x + g.width) {
+      const cw = Math.min(12 + Math.random() * 14, g.x + g.width - x);
+      const cx = x + cw / 2, cy = y + ch / 2;
+      const sides = 3 + Math.floor(Math.random() * 4);
+      const rad = Math.max(3, Math.min(cw, ch) / 2) * (0.8 + Math.random() * 0.5);
+      const pts = [];
+      for (let k = 0; k < sides; k++) {
+        const a = (Math.PI * 2 * k) / sides + (Math.random() - 0.5) * 0.9;
+        const rr = rad * (0.55 + Math.random() * 0.5);
+        pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+      }
+      const near = Math.max(0, 1 - Math.abs(cy - orb.y) / 160);
+      debris.push({
+        x: cx, y: cy, pts,
+        vx: push * (1 + Math.random() * 2 + near * 3) + (Math.random() - 0.5) * 3,
+        vy: (part === 'top' ? Math.random() * 2 : -Math.random() * 4 - 2) + (cy < orb.y ? -1 : 1) * near * 5,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.4
+      });
+      x += cw;
+    }
+    y += ch;
   }
 }
 
@@ -339,6 +390,7 @@ function startGame() {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   showBoard(false);
   $('pauseBtn').classList.remove('hidden');
+  closeModal();
   Sound.unlock();
   Sound.resume();
 }
@@ -491,7 +543,7 @@ let globalBoard = null;
 // Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
 // Leave empty to use the on-device leaderboard only.
 const LEADERBOARD_URL = 'https://level-plus-b1948-default-rtdb.asia-southeast1.firebasedatabase.app';
-const GAME_VERSION = '1.5';
+const GAME_VERSION = '1.7';
 // Which kind of device this score was made on
 const DEVICE = (() => {
   const ua = navigator.userAgent || '';
@@ -524,14 +576,14 @@ async function refreshGlobal() {
     clearTimeout(tm);
     if (!r.ok) return;
     const data = await r.json();
-    globalBoard = sortRows(Object.values(data || {}).filter(validRow)).slice(0, 5);
+    globalBoard = sortRows(Object.values(data || {}).filter(validRow)).slice(0, 10);
     if (!$('leaderboard').classList.contains('hidden')) renderBoard();
   } catch (e) {}
 }
 
 function submitGlobal(n, s, v, d) {
   if (!LEADERBOARD_URL) return;
-  if (globalBoard) globalBoard = sortRows(globalBoard.concat([{ n, s, v, d, t: Date.now() }])).slice(0, 5);
+  if (globalBoard) globalBoard = sortRows(globalBoard.concat([{ n, s, v, d, t: Date.now() }])).slice(0, 10);
   fetch(LEADERBOARD_URL + '/scores.json', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -548,16 +600,35 @@ function addToBoard() {
   submitGlobal(entry.n, entry.s, entry.v, entry.d);
   board.push(entry);
   board.sort((a, b) => b.s - a.s || a.t - b.t);
-  board = board.slice(0, 5);
+  board = board.slice(0, 10);
   try { localStorage.setItem('levelPlusBoard', JSON.stringify(board)); } catch (e) {}
   return board.indexOf(entry);
 }
 
 function renderBoard() {
-  const list = $('lbList');
-  list.textContent = '';
-  const rows = globalBoard || board;
+  const all = globalBoard || board;
   $('lbTitle').textContent = globalBoard ? 'WORLD LEADERBOARD' : 'LEADERBOARD';
+  fillList($('lbList'), all.slice(0, 5));
+  if (!$('lbModal').classList.contains('hidden')) renderModal();
+}
+
+function renderModal() {
+  $('lbModalTitle').textContent = (globalBoard ? 'WORLD' : 'THIS DEVICE') + ' · TOP 10';
+  fillList($('lbModalList'), (globalBoard || board).slice(0, 10));
+}
+
+function openModal() {
+  renderModal();
+  $('lbModal').classList.remove('hidden');
+  refreshGlobal();
+}
+
+function closeModal() {
+  $('lbModal').classList.add('hidden');
+}
+
+function fillList(list, rows) {
+  list.textContent = '';
   if (!rows.length) {
     const li = document.createElement('li');
     li.className = 'lb-empty';
@@ -903,16 +974,21 @@ function drawGates() {
 }
 
 function drawDebris() {
+  ctx.lineWidth = 1.5;
   for (const d of debris) {
     ctx.save();
-    ctx.translate(d.x + d.w / 2, d.y + d.h / 2);
+    ctx.translate(d.x, d.y);
     ctx.rotate(d.rot);
-    ctx.shadowColor = '#b026ff'; ctx.shadowBlur = 15;
-    ctx.fillStyle = 'rgba(176, 38, 255, 0.45)';
-    ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+    ctx.beginPath();
+    ctx.moveTo(d.pts[0][0], d.pts[0][1]);
+    for (let k = 1; k < d.pts.length; k++) ctx.lineTo(d.pts[k][0], d.pts[k][1]);
+    ctx.closePath();
+    ctx.shadowColor = '#b026ff'; ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(176, 38, 255, 0.55)';
+    ctx.fill();
     ctx.shadowColor = '#ff2a4d';
-    ctx.strokeStyle = 'rgba(255, 42, 77, 0.9)'; ctx.lineWidth = 2;
-    ctx.strokeRect(-d.w / 2, -d.h / 2, d.w, d.h);
+    ctx.strokeStyle = 'rgba(255, 42, 77, 0.9)';
+    ctx.stroke();
     ctx.restore();
   }
 }
@@ -941,7 +1017,7 @@ function loop(now) {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
-const isButton = e => e.target && e.target.closest && e.target.closest('button, input');
+const isButton = e => e.target && e.target.closest && e.target.closest('button, input, .leaderboard, .lb-modal');
 
 container.addEventListener('pointerdown', e => {
   if (isButton(e)) return;
@@ -956,6 +1032,7 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); startGame(); }
     return;
   }
+  if (!$('lbModal').classList.contains('hidden') && e.code === 'Escape') { closeModal(); return; }
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
     if (gameState === STATE.PLAYING) jump();
@@ -975,6 +1052,9 @@ $('winRestartBtn').addEventListener('click', startGame);
 $('pauseBtn').addEventListener('click', pauseGame);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('soundBtn').addEventListener('click', toggleSound);
+$('leaderboard').addEventListener('click', openModal);
+$('lbCloseBtn').addEventListener('click', closeModal);
+$('lbModal').addEventListener('click', e => { if (e.target === $('lbModal')) closeModal(); });
 // Browsers only allow audio after the first tap/click/key
 ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { passive: true }));
 updateSoundBtn();
