@@ -230,7 +230,7 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 2.0</div>
+  <div class="version">Version 2.1</div>
   <div class="author">Author: Ha Q. Vu - A5 K36 THCS Giang Vo - Ha Noi - Viet Nam<span class="note">This is a research and experimental project, not a commercial product.</span></div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title" id="lbTitle">LEADERBOARD</div>
@@ -831,7 +831,7 @@ let globalBoard = null;
 // Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
 // Leave empty to use the on-device leaderboard only.
 const LEADERBOARD_URL = 'https://level-plus-b1948-default-rtdb.asia-southeast1.firebasedatabase.app';
-const GAME_VERSION = '2.0';
+const GAME_VERSION = '2.1';
 // Which kind of device this score was made on
 const DEVICE = (() => {
   const ua = navigator.userAgent || '';
@@ -1015,10 +1015,11 @@ function checkCollisions() {
 
 function explode() {
   screenShake = 28;
-  shock = { x: orb.x, y: orb.y, r: orb.radius, life: 1 };
+  const sc = skinCol();
+  shock = { x: orb.x, y: orb.y, r: orb.radius, life: 1, c1: sc.main, c2: sc.light };
   for (let i = 0; i < 90; i++) {
     const angle = (Math.PI * 2 * i) / 90 + Math.random() * 0.3, spd = Math.random() * 10 + 3;
-    particles.push({ x: orb.x, y: orb.y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, size: Math.random() * 7 + 4, life: 1, decay: 0.012, color: Math.random() > 0.5 ? '#00f0ff' : '#b026ff' });
+    particles.push({ x: orb.x, y: orb.y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, size: Math.random() * 7 + 4, life: 1, decay: 0.012, color: Math.random() > 0.5 ? sc.main : sc.light });
   }
 }
 
@@ -1241,10 +1242,10 @@ function drawOrb() {
 function drawParticles() {
   if (shock) {
     ctx.globalAlpha = shock.life;
-    ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 25;
-    ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 6 * shock.life + 1;
+    ctx.shadowColor = shock.c1; ctx.shadowBlur = 25;
+    ctx.strokeStyle = shock.c1; ctx.lineWidth = 6 * shock.life + 1;
     ctx.beginPath(); ctx.arc(shock.x, shock.y, shock.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowColor = '#b026ff'; ctx.strokeStyle = '#b026ff'; ctx.lineWidth = 3 * shock.life + 1;
+    ctx.shadowColor = shock.c2; ctx.strokeStyle = shock.c2; ctx.lineWidth = 3 * shock.life + 1;
     ctx.beginPath(); ctx.arc(shock.x, shock.y, shock.r * 0.7, 0, Math.PI * 2); ctx.stroke();
   }
   for (const p of particles) {
