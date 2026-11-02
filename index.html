@@ -161,6 +161,30 @@
   .lb-panel li.me .s { color: #39ff6a; text-shadow: 0 0 8px rgba(57, 255, 106, 0.6); }
   .lb-panel li.lb-empty { color: var(--muted); }
   .lb-panel .btn { display: block; margin: 1.2rem auto 0; padding: 0.7rem 2rem; font-size: 1rem; }
+  .btn-alt { border-color: var(--purple); color: #e0b3ff; margin-top: 1rem; box-shadow: 0 0 25px rgba(176, 38, 255, 0.25), inset 0 0 20px rgba(176, 38, 255, 0.08); }
+  .star-ic { width: 1em; height: 1em; vertical-align: -0.12em; filter: drop-shadow(0 0 3px #8cc8ff) drop-shadow(0 0 7px rgba(120, 180, 255, 0.6)); }
+  .hud-stars { display: flex; align-items: center; gap: 0.3rem; margin-top: 0.2rem; color: #cfe8ff; font-weight: 700; font-size: clamp(0.8rem, 3vw, 1rem); }
+  .pause-stars { color: #cfe8ff; font-weight: 700; font-size: clamp(1rem, 4vw, 1.3rem); margin-top: 1rem; }
+  .shop-balance { text-align: center; color: #cfe8ff; font-weight: 700; margin-bottom: 0.9rem; font-size: clamp(0.9rem, 3.5vw, 1.1rem); }
+  .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 0.6rem; }
+  .swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 0.7rem 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; background: rgba(255, 255, 255, 0.03);
+    color: #c9d1e3; font-family: inherit; font-size: 0.8rem; cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .swatch.on { border-color: var(--green); box-shadow: 0 0 12px rgba(57, 255, 106, 0.35); }
+  .swatch.ask { border-color: #ffd54a; box-shadow: 0 0 12px rgba(255, 213, 74, 0.35); }
+  .swatch:disabled { opacity: 0.45; cursor: not-allowed; }
+  .swatch .dot { width: 34px; height: 34px; border-radius: 50%; }
+  .swatch .state { display: flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted); }
+  .swatch.on .state { color: var(--green); }
+  .swatch.ask .state { color: #ffd54a; }
+  .shop-note { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 0.9rem; }
+  .fly-star { position: absolute; left: 0; top: 0; width: 22px; height: 22px; z-index: 7; pointer-events: none; will-change: transform; }
+  .fly-star .star-ic { width: 100%; height: 100%; vertical-align: top; }
+  @keyframes starPulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); color: #fff; } 100% { transform: scale(1); } }
+  .hud-stars.pulse { animation: starPulse 0.35s ease-out; transform-origin: left center; }
   .name-input {
     display: block; margin: 1.5rem auto 0; width: min(240px, 70vw); padding: 0.6rem 1rem;
     background: transparent; border: 1px solid rgba(176, 38, 255, 0.5); border-radius: 4px;
@@ -191,6 +215,7 @@
     <div class="hud-item">
       <span class="hud-label">Score</span>
       <span class="hud-value" id="hudScore">0</span>
+      <span class="hud-stars"><svg class="star-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0L13.2 10.8L24 12L13.2 13.2L12 24L10.8 13.2L0 12L10.8 10.8Z" fill="#cfe8ff"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg><span id="hudStars">0</span></span>
     </div>
     <div class="hud-item right">
       <span class="hud-label">Level <span id="hudLevel">1</span><span id="hudMax"> / 10</span></span>
@@ -203,7 +228,7 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 1.7</div>
+  <div class="version">Version 1.9</div>
   <div class="author">Author: Ha Q. Vu - A5 K36 THCS Giang Vo - Ha Noi - Viet Nam<span class="note">This is a research and experimental project, not a commercial product.</span></div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title" id="lbTitle">LEADERBOARD</div>
@@ -215,6 +240,15 @@
       <div class="lb-title" id="lbModalTitle">TOP 10</div>
       <ol id="lbModalList"></ol>
       <button class="btn" id="lbCloseBtn">Close</button>
+    </div>
+  </div>
+  <div id="shopModal" class="screen dim lb-modal hidden">
+    <div class="screen-content lb-panel">
+      <div class="lb-title">ORB COLORS</div>
+      <div class="shop-balance"><svg class="star-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0L13.2 10.8L24 12L13.2 13.2L12 24L10.8 13.2L0 12L10.8 10.8Z" fill="#cfe8ff"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg> <span id="shopStars">0</span> stars</div>
+      <div class="shop-grid" id="shopGrid"></div>
+      <div class="shop-note">+1 star for every gate · each color costs 100 stars</div>
+      <button class="btn" id="shopCloseBtn">Close</button>
     </div>
   </div>
   <div id="scorePop">+1</div>
@@ -238,6 +272,8 @@
     <div class="screen-content">
       <div class="game-title pause-title">Paused</div>
       <button class="btn" id="resumeBtn">Resume</button>
+      <div class="pause-stars"><svg class="star-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0L13.2 10.8L24 12L13.2 13.2L12 24L10.8 13.2L0 12L10.8 10.8Z" fill="#cfe8ff"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg> <span id="pauseStars">0</span> stars</div>
+      <button class="btn btn-alt" id="shopBtn">Orb colors</button>
     </div>
   </div>
 
@@ -374,7 +410,7 @@ function jump() {
   orb.vy = JUMP_FORCE;
   Sound.sfx('jump');
   for (let i = 0; i < 6; i++) {
-    particles.push({ x: orb.x + (Math.random() - 0.5) * 12, y: orb.y + orb.radius, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2.5 + 1, size: Math.random() * 3.5 + 2, life: 1, decay: 0.035, color: '#00f0ff' });
+    particles.push({ x: orb.x + (Math.random() - 0.5) * 12, y: orb.y + orb.radius, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2.5 + 1, size: Math.random() * 3.5 + 2, life: 1, decay: 0.035, color: orbCol().main });
   }
 }
 
@@ -391,6 +427,7 @@ function startGame() {
   showBoard(false);
   $('pauseBtn').classList.remove('hidden');
   closeModal();
+  closeShop();
   Sound.unlock();
   Sound.resume();
 }
@@ -410,6 +447,7 @@ function resumeGame() {
   $('pauseScreen').classList.add('hidden');
   showBoard(false);
   $('pauseBtn').classList.remove('hidden');
+  closeShop();
   Sound.resume();
 }
 
@@ -521,6 +559,122 @@ const Sound = (() => {
   };
 })();
 
+// ===== Stars & orb color shop (saved on this device) =====
+const ORB_COLORS = [
+  { id: 'cyan', name: 'Cyan', main: '#00f0ff', light: '#7df9ff', dark: '#0088aa' },
+  { id: 'green', name: 'Lime', main: '#39ff6a', light: '#a8ffbf', dark: '#0a9a3a' },
+  { id: 'pink', name: 'Pink', main: '#ff4fd8', light: '#ffb3f0', dark: '#a01a85' },
+  { id: 'gold', name: 'Gold', main: '#ffd54a', light: '#fff0a8', dark: '#b38600' },
+  { id: 'orange', name: 'Orange', main: '#ff8a2a', light: '#ffc59a', dark: '#b34a00' },
+  { id: 'red', name: 'Red', main: '#ff3b5c', light: '#ffa3b2', dark: '#a3001c' },
+  { id: 'violet', name: 'Violet', main: '#b026ff', light: '#dca3ff', dark: '#5e0aa3' },
+  { id: 'white', name: 'Star white', main: '#ffffff', light: '#ffffff', dark: '#8fb6ff' }
+];
+const ORB_PRICE = 100;
+const STAR_SVG = '<svg class="star-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0L13.2 10.8L24 12L13.2 13.2L12 24L10.8 13.2L0 12L10.8 10.8Z" fill="#cfe8ff"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg>';
+let stars = 0, ownedOrbs = ['cyan'], currentOrb = 'cyan', pendingBuy = null;
+try { stars = parseInt(localStorage.getItem('levelPlusStars') || '0', 10) || 0; } catch (e) {}
+try {
+  const o = JSON.parse(localStorage.getItem('levelPlusOrbs') || 'null');
+  if (o && Array.isArray(o.owned)) {
+    ownedOrbs = o.owned.filter(id => ORB_COLORS.some(c => c.id === id));
+    if (!ownedOrbs.includes('cyan')) ownedOrbs.unshift('cyan');
+    if (ownedOrbs.includes(o.current)) currentOrb = o.current;
+  }
+} catch (e) {}
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(', ');
+function orbCol() { return ORB_COLORS.find(c => c.id === currentOrb) || ORB_COLORS[0]; }
+function saveShop() {
+  try {
+    localStorage.setItem('levelPlusStars', String(stars));
+    localStorage.setItem('levelPlusOrbs', JSON.stringify({ owned: ownedOrbs, current: currentOrb }));
+  } catch (e) {}
+}
+function updateStarsUI() {
+  ['hudStars', 'pauseStars', 'shopStars'].forEach(id => { const el = $(id); if (el) el.textContent = stars; });
+}
+function addStars(n) {
+  stars += n;
+  try { localStorage.setItem('levelPlusStars', String(stars)); } catch (e) {}
+  updateStarsUI();
+}
+// A star flies from the gate burst to the star counter, then is added
+function flyStar(x, y) {
+  const target = $('hudStars');
+  const icon = target.previousElementSibling || target;
+  const cRect = container.getBoundingClientRect();
+  const tRect = icon.getBoundingClientRect();
+  if (!tRect.width || typeof Element.prototype.animate !== 'function') { addStars(1); return; }
+  const tx = tRect.left - cRect.left + tRect.width / 2;
+  const ty = tRect.top - cRect.top + tRect.height / 2;
+  const el = document.createElement('div');
+  el.className = 'fly-star';
+  el.innerHTML = STAR_SVG;
+  container.appendChild(el);
+  const h = 11;
+  const mx = x + (tx - x) * 0.25 + (Math.random() - 0.5) * 40;
+  const my = y - 50 - Math.random() * 40;
+  const anim = el.animate([
+    { transform: 'translate(' + (x - h) + 'px,' + (y - h) + 'px) scale(0.3)', opacity: 0 },
+    { transform: 'translate(' + (x - h) + 'px,' + (y - h - 12) + 'px) scale(1.6)', opacity: 1, offset: 0.15 },
+    { transform: 'translate(' + (mx - h) + 'px,' + (my - h) + 'px) scale(1.2)', opacity: 1, offset: 0.45 },
+    { transform: 'translate(' + (tx - h) + 'px,' + (ty - h) + 'px) scale(0.6)', opacity: 0.9 }
+  ], { duration: 750, easing: 'ease-in' });
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    el.remove();
+    addStars(1);
+    const box = target.parentElement;
+    box.classList.remove('pulse'); void box.offsetWidth; box.classList.add('pulse');
+  };
+  anim.onfinish = finish;
+  setTimeout(finish, 1100);
+}
+function renderShop() {
+  updateStarsUI();
+  const grid = $('shopGrid');
+  grid.textContent = '';
+  ORB_COLORS.forEach(c => {
+    const owned = ownedOrbs.includes(c.id), on = c.id === currentOrb, asking = pendingBuy === c.id;
+    const b = document.createElement('button');
+    b.className = 'swatch' + (on ? ' on' : '') + (asking ? ' ask' : '');
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = 'radial-gradient(circle at 35% 35%, #fff 0%, ' + c.light + ' 30%, ' + c.main + ' 70%, ' + c.dark + ' 100%)';
+    dot.style.boxShadow = '0 0 14px ' + c.main;
+    const nm = document.createElement('span');
+    nm.textContent = c.name;
+    const st = document.createElement('span');
+    st.className = 'state';
+    if (on) st.textContent = 'EQUIPPED';
+    else if (owned) st.textContent = 'USE';
+    else if (asking) st.textContent = 'TAP AGAIN TO BUY';
+    else {
+      st.innerHTML = STAR_SVG;
+      st.append(' ' + ORB_PRICE);
+      if (stars < ORB_PRICE) b.disabled = true;
+    }
+    b.append(dot, nm, st);
+    b.addEventListener('click', () => {
+      if (!owned) {
+        if (stars < ORB_PRICE) return;
+        if (pendingBuy !== c.id) { pendingBuy = c.id; renderShop(); return; }
+        stars -= ORB_PRICE;
+        ownedOrbs.push(c.id);
+      }
+      pendingBuy = null;
+      currentOrb = c.id;
+      saveShop();
+      renderShop();
+    });
+    grid.appendChild(b);
+  });
+}
+function openShop() { pendingBuy = null; renderShop(); $('shopModal').classList.remove('hidden'); }
+function closeShop() { pendingBuy = null; $('shopModal').classList.add('hidden'); }
+
 function updateSoundBtn() {
   const on = Sound.isEnabled();
   $('soundBtn').classList.toggle('off', !on);
@@ -543,7 +697,7 @@ let globalBoard = null;
 // Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
 // Leave empty to use the on-device leaderboard only.
 const LEADERBOARD_URL = 'https://level-plus-b1948-default-rtdb.asia-southeast1.firebasedatabase.app';
-const GAME_VERSION = '1.7';
+const GAME_VERSION = '1.9';
 // Which kind of device this score was made on
 const DEVICE = (() => {
   const ua = navigator.userAgent || '';
@@ -808,6 +962,7 @@ function update() {
       spawnScoreParticles(g.x + g.width / 2, orb.y);
       showScorePop();
       Sound.sfx('gate');
+      flyStar(g.x + g.width / 2, orb.y);
       if (gatesPassedThisLevel >= GATES_PER_LEVEL && level < 10) levelUp();
     }
   }
@@ -914,7 +1069,7 @@ function drawOrb() {
   for (const t of orb.trail) {
     if (t.life <= 0) continue;
     ctx.globalAlpha = t.life * 0.4;
-    ctx.fillStyle = '#00f0ff';
+    ctx.fillStyle = orbCol().main;
     ctx.beginPath(); ctx.arc(t.x, t.y, orb.radius * t.life * 0.85, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -923,22 +1078,23 @@ function drawOrb() {
   ctx.save();
   ctx.translate(orb.x, orb.y);
   ctx.rotate(orb.rotation);
-  ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 35;
+  const oc = orbCol(), orgb = hexRgb(oc.main);
+  ctx.shadowColor = oc.main; ctx.shadowBlur = 35;
   const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, orb.radius * 2.2);
-  halo.addColorStop(0, 'rgba(0, 240, 255, 0.4)'); halo.addColorStop(0.5, 'rgba(0, 240, 255, 0.15)'); halo.addColorStop(1, 'rgba(0, 240, 255, 0)');
+  halo.addColorStop(0, 'rgba(' + orgb + ', 0.4)'); halo.addColorStop(0.5, 'rgba(' + orgb + ', 0.15)'); halo.addColorStop(1, 'rgba(' + orgb + ', 0)');
   ctx.fillStyle = halo;
   ctx.beginPath(); ctx.arc(0, 0, orb.radius * 2.2, 0, Math.PI * 2); ctx.fill();
 
   ctx.shadowBlur = 25;
   const body = ctx.createRadialGradient(-orb.radius * 0.3, -orb.radius * 0.3, 0, 0, 0, orb.radius);
-  body.addColorStop(0, '#ffffff'); body.addColorStop(0.3, '#7df9ff'); body.addColorStop(0.7, '#00f0ff'); body.addColorStop(1, '#0088aa');
+  body.addColorStop(0, '#ffffff'); body.addColorStop(0.3, oc.light); body.addColorStop(0.7, oc.main); body.addColorStop(1, oc.dark);
   ctx.fillStyle = body;
   ctx.beginPath(); ctx.arc(0, 0, orb.radius, 0, Math.PI * 2); ctx.fill();
 
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
   ctx.beginPath(); ctx.arc(-orb.radius * 0.3, -orb.radius * 0.3, orb.radius * 0.3, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(' + orgb + ', 0.6)'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(0, 0, orb.radius * 1.15, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
@@ -1032,6 +1188,7 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); startGame(); }
     return;
   }
+  if (!$('shopModal').classList.contains('hidden') && e.code === 'Escape') { closeShop(); return; }
   if (!$('lbModal').classList.contains('hidden') && e.code === 'Escape') { closeModal(); return; }
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
@@ -1054,11 +1211,15 @@ $('resumeBtn').addEventListener('click', resumeGame);
 $('soundBtn').addEventListener('click', toggleSound);
 $('leaderboard').addEventListener('click', openModal);
 $('lbCloseBtn').addEventListener('click', closeModal);
+$('shopBtn').addEventListener('click', openShop);
+$('shopCloseBtn').addEventListener('click', closeShop);
+$('shopModal').addEventListener('click', e => { if (e.target === $('shopModal')) closeShop(); });
 $('lbModal').addEventListener('click', e => { if (e.target === $('lbModal')) closeModal(); });
 // Browsers only allow audio after the first tap/click/key
 ['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => Sound.unlock(), { passive: true }));
 updateSoundBtn();
 document.querySelector('.version').textContent = 'Version ' + GAME_VERSION;
+updateStarsUI();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { pauseGame(); Sound.suspend(); }
   else if (gameState !== STATE.PAUSED) Sound.resume();
