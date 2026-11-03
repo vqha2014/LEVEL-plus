@@ -230,7 +230,7 @@
     <button id="pauseBtn" class="hidden" aria-label="Pause">II</button>
     <button id="soundBtn" aria-label="Music on/off" aria-pressed="true">♪</button>
   </div>
-  <div class="version">Version 2.1</div>
+  <div class="version">Version 2.2</div>
   <div class="author">Author: Ha Q. Vu - A5 K36 THCS Giang Vo - Ha Noi - Viet Nam<span class="note">This is a research and experimental project, not a commercial product.</span></div>
   <div id="leaderboard" class="leaderboard">
     <div class="lb-title" id="lbTitle">LEADERBOARD</div>
@@ -353,7 +353,8 @@ function collapse(g, part) {
 
 const LEVELS = [];
 for (let i = 0; i < 10; i++) {
-  LEVELS.push({ speed: 3.0 + i * 0.55, gapSize: 230 - i * 16 + (i < 3 ? 40 : 0), spawnInterval: Math.max(50, 105 - i * 6), gravity: 0.42 + i * 0.025 });
+  // 10% slower than before; gates spawn a bit later so the spacing between them stays the same
+  LEVELS.push({ speed: (3.0 + i * 0.55) * 0.9, gapSize: 230 - i * 16 + (i < 3 ? 40 : 0), spawnInterval: Math.round(Math.max(50, 105 - i * 6) / 0.9), gravity: 0.42 + i * 0.025 });
 }
 
 let score = 0, bestScore = 0, level = 1, gatesPassedThisLevel = 0;
@@ -831,7 +832,7 @@ let globalBoard = null;
 // Paste your database URL here, e.g. 'https://level-plus-xxxxx-default-rtdb.firebaseio.com'
 // Leave empty to use the on-device leaderboard only.
 const LEADERBOARD_URL = 'https://level-plus-b1948-default-rtdb.asia-southeast1.firebasedatabase.app';
-const GAME_VERSION = '2.1';
+const GAME_VERSION = '2.2';
 // Which kind of device this score was made on
 const DEVICE = (() => {
   const ua = navigator.userAgent || '';
