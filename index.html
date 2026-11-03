@@ -187,6 +187,12 @@
   .fly-star .star-ic { width: 100%; height: 100%; vertical-align: top; }
   @keyframes starPulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); color: #fff; } 100% { transform: scale(1); } }
   .hud-stars.pulse { animation: starPulse 0.35s ease-out; transform-origin: left center; }
+  .home {
+    display: inline-block; margin-top: 1.2rem; padding: 0.45rem 1.1rem; border-radius: 999px;
+    border: 1px solid rgba(139, 147, 167, 0.45); color: #8b93a7; text-decoration: none;
+    font-size: clamp(0.75rem, 2.8vw, 0.9rem); letter-spacing: 0.12em; -webkit-tap-highlight-color: transparent;
+  }
+  .home:hover, .home:active { color: var(--cyan); border-color: var(--cyan); }
   .name-input {
     display: block; margin: 1.5rem auto 0; width: min(240px, 70vw); padding: 0.6rem 1rem;
     background: transparent; border: 1px solid rgba(176, 38, 255, 0.5); border-radius: 4px;
@@ -267,6 +273,7 @@
       <input class="name-input" id="nameInput" type="text" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Your name">
       <button class="btn" id="startBtn">Start</button>
       <div class="best-score" id="startBest">Best: 0</div>
+      <a class="home" href="https://vqha2014.github.io/">◂ All games</a>
     </div>
   </div>
 
@@ -275,7 +282,8 @@
       <div class="game-title pause-title">Paused</div>
       <button class="btn" id="resumeBtn">Resume</button>
       <div class="pause-stars"><svg class="star-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0L13.2 10.8L24 12L13.2 13.2L12 24L10.8 13.2L0 12L10.8 10.8Z" fill="#cfe8ff"/><circle cx="12" cy="12" r="3.2" fill="#fff"/></svg> <span id="pauseStars">0</span> stars</div>
-      <button class="btn btn-alt" id="shopBtn">Orb colors</button>
+      <button class="btn btn-alt" id="shopBtn">Orb colors</button><br>
+      <a class="home" href="https://vqha2014.github.io/">◂ All games</a>
     </div>
   </div>
 
@@ -286,7 +294,8 @@
       <div class="score-value" id="finalScore">0</div>
       <div class="best-score" id="finalBest">Best: 0</div>
       <div id="newBestBadge" class="new-best hidden">NEW RECORD</div><br>
-      <button class="btn" id="restartBtn">Play again</button>
+      <button class="btn" id="restartBtn">Play again</button><br>
+      <a class="home" href="https://vqha2014.github.io/">◂ All games</a>
     </div>
   </div>
 
@@ -296,7 +305,8 @@
       <div class="score-label">You cleared all 10 levels</div>
       <div class="score-value" id="winScore">0</div>
       <div class="best-score" id="winBest">Best: 0</div>
-      <button class="btn" id="winRestartBtn">Play again</button>
+      <button class="btn" id="winRestartBtn">Play again</button><br>
+      <a class="home" href="https://vqha2014.github.io/">◂ All games</a>
     </div>
   </div>
 </div>
@@ -1314,7 +1324,7 @@ function loop(now) {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 
-const isButton = e => e.target && e.target.closest && e.target.closest('button, input, .leaderboard, .lb-modal');
+const isButton = e => e.target && e.target.closest && e.target.closest('button, input, a, .leaderboard, .lb-modal');
 
 container.addEventListener('pointerdown', e => {
   if (isButton(e)) return;
